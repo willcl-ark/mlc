@@ -1,7 +1,7 @@
 extern crate walkdir;
 
 use crate::markup::{MarkupFile, MarkupType};
-use crate::Config;
+use crate::{is_path_gitignored, Config};
 use std::fs;
 use walkdir::WalkDir;
 
@@ -18,8 +18,8 @@ pub fn find(config: &Config, result: &mut Vec<MarkupFile>) {
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| {
-            !(e.file_type().is_dir()
-                && config.optional.ignore_path.as_ref().is_some_and(|x| {
+            if e.file_type().is_dir() {
+                let explicit_ignore = config.optional.ignore_path.as_ref().is_some_and(|x| {
                     x.iter().any(|f| {
                         let ignore = f.is_dir()
                             && e.path()
@@ -27,11 +27,22 @@ pub fn find(config: &Config, result: &mut Vec<MarkupFile>) {
                                 .unwrap_or_default()
                                 .starts_with(fs::canonicalize(f).unwrap_or_default());
                         if ignore {
-                            info!("Ignore directory: '{f:?}'");
+                            info!("Ignore directory (explicit): '{f:?}'");
                         }
                         ignore
                     })
-                }))
+                });
+
+                if explicit_ignore {
+                    return false;
+                }
+
+                if config.optional.gitignore.is_some() && is_path_gitignored(e.path()) {
+                    info!("Ignore directory (gitignored): '{:?}'", e.path());
+                    return false;
+                }
+            }
+            true
         })
         .filter_map(Result::ok)
         .filter(|e| !e.file_type().is_dir())

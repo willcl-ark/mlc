@@ -198,6 +198,15 @@ fn find_git_untracked_files() -> Option<Vec<PathBuf>> {
     }
 }
 
+pub fn is_path_gitignored(path: &Path) -> bool {
+    let output = Command::new("git").arg("check-ignore").arg(path).output();
+
+    match output {
+        Ok(result) => result.status.success(),
+        Err(_) => false,
+    }
+}
+
 fn print_helper(
     link: &MarkupLink,
     status_code: &colored::ColoredString,
